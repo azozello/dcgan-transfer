@@ -1,18 +1,13 @@
 import os
-import sys
-import gzip
 import time
-import pickle
 
 import numpy as np
-import pandas as pd
 
 from tqdm import tqdm
 from PIL import Image
 from matplotlib import pyplot as plt
 
 from keras import Input
-from keras.datasets import mnist
 from keras.layers import Dense, Reshape, LeakyReLU, Conv2D, Conv2DTranspose, Flatten, Dropout
 from keras.models import Model
 from keras.optimizers import RMSprop
@@ -29,13 +24,11 @@ def show_images(pic_dir: str):
     plt.show()
 
 
-def load_images(pic_dir: str) -> [Image]:
+def load_images(height: int, width: int, pic_dir: str) -> [Image]:
     images_count = 10000
     original_width = 178
     original_height = 208
     diff = (original_height - original_width) // 2
-    width = 64
-    height = 64
 
     crop_rect = (0, diff, original_width, original_height - diff)
     images = []
@@ -47,27 +40,15 @@ def load_images(pic_dir: str) -> [Image]:
 
     # Normalize the images
     images = np.array(images) / 255
-    images.shape
+    # images.shape
 
     return images
 
 
-def load_mnist():
-    (X_train, y_train), (_, _) = mnist.load_data()
-    f = gzip.open('/Users/denyspanov/Projects/bachelor/keras/Keras-GAN/cgan/data/mnist.pkl.gz', 'rb')
-    if sys.version_info < (3,):
-        data = pickle.load(f)
-    else:
-        data = pickle.load(f, encoding='bytes')
-    f.close()
-    (X_train, y_train), (_, _) = data
-
-    return X_train, y_train
-
-
-def create_gan(latent_dim: int, height: int, width: int, channels: int):
-    generator = create_generator(latent_dim, channels)
-    discriminator = create_discriminator(height, width, channels)
+def create_gan(latent_dim: int, height: int, width: int, channels: int,
+               multiplier=2):
+    generator = create_generator(latent_dim, channels, height, multiplier)
+    discriminator = create_discriminator(height, width, channels, multiplier)
     discriminator.trainable = False
 
     gan_input = Input(shape=(latent_dim,))
@@ -80,51 +61,58 @@ def create_gan(latent_dim: int, height: int, width: int, channels: int):
     return generator, discriminator, gan
 
 
-def create_generator(latent_dim: int, channels: int) -> Model:
-    gen_input = Input(shape=(latent_dim, ))
+def create_generator(latent_dim: int, channels: int, size: int,
+                     multiplier=2) -> Model:
+    gen_input = Input(shape=(latent_dim,))
 
-    x = Dense(64 * 8 * 8)(gen_input) # 128
+    print(f'\nINDEX:  [{int(size / 8)}]')
+    print(f'START:  [{size}]')
+    print(f'MIDDLE: [{size * multiplier}]')
+    print(f'END:    [{size * (multiplier * 2)}]\n')
+
+    x = Dense(size * int(size / 8) * int(size / 8))(gen_input)  # 128
     x = LeakyReLU()(x)
-    x = Reshape((8, 8, 64))(x) # 128
+    x = Reshape((int(size / 8), int(size / 8), size))(x)  # 128
 
-    x = Conv2D(128, 5, padding='same')(x)  # 256
-    x = LeakyReLU()(x)
-
-    x = Conv2DTranspose(128, 4, strides=2, padding='same')(x) # 256
-    x = LeakyReLU()(x)
-
-    x = Conv2DTranspose(128, 4, strides=2, padding='same')(x) # 256
-    x = LeakyReLU()(x)
-
-    x = Conv2DTranspose(128, 4, strides=2, padding='same')(x) # 256
+    x = Conv2D(size, 5, padding='same')(x)  # 256
     x = LeakyReLU()(x)
 
-    x = Conv2D(256, 5, padding='same')(x) # 512
+    x = Conv2DTranspose(size, 4, strides=2, padding='same')(x)  # 256
     x = LeakyReLU()(x)
-    x = Conv2D(256, 5, padding='same')(x) # 512
-    x = 4()(x)
+
+    x = Conv2DTranspose(size * multiplier, 4, strides=2, padding='same')(x)  # 256
+    x = LeakyReLU()(x)
+
+    x = Conv2DTranspose(size * multiplier, 4, strides=2, padding='same')(x)  # 256
+    x = LeakyReLU()(x)
+
+    x = Conv2D(size * (multiplier * 2), 5, padding='same')(x)  # 512
+    x = LeakyReLU()(x)
+    x = Conv2D(size * (multiplier * 2), 5, padding='same')(x)  # 512
+    x = LeakyReLU()(x)
     x = Conv2D(channels, 7, activation='tanh', padding='same')(x)
 
     generator = Model(gen_input, x)
     return generator
 
 
-def create_discriminator(height: int, width: int, channels: int) -> Model:
+def create_discriminator(height: int, width: int, channels: int,
+                         multiplier=2) -> Model:
     disc_input = Input(shape=(height, width, channels))
 
-    x = Conv2D(64, 3)(disc_input) # 256
+    x = Conv2D(height * multiplier, 3)(disc_input)  # 256
     x = LeakyReLU()(x)
 
-    x = Conv2D(64, 4, strides=2)(x) # 256
+    x = Conv2D(height * multiplier, 4, strides=2)(x)  # 256
     x = LeakyReLU()(x)
 
-    x = Conv2D(64, 4, strides=2)(x) # 256
+    x = Conv2D(height * multiplier, 4, strides=2)(x)  # 256
     x = LeakyReLU()(x)
 
-    x = Conv2D(64, 4, strides=2)(x) # 256
+    x = Conv2D(height * multiplier, 4, strides=2)(x)  # 256
     x = LeakyReLU()(x)
 
-    x = Conv2D(64, 4, strides=2)(x) # 256
+    x = Conv2D(height * multiplier, 4, strides=2)(x)  # 256
     x = LeakyReLU()(x)
 
     x = Flatten()(x)
@@ -140,11 +128,9 @@ def create_discriminator(height: int, width: int, channels: int) -> Model:
     return discriminator
 
 
-def train(height: int, width: int, latent_dim: int, channels: int, images: np.array):
-    generator, discriminator, gan = create_gan(latent_dim, height, width, channels)
-
-    iterations = 15000
-    batch_size = 16
+def train(height: int, width: int, latent_dim: int, channels: int, images: np.array,
+          multiplier=2, batch_size=16, iterations=15000):
+    generator, discriminator, gan = create_gan(latent_dim, height, width, channels, multiplier)
 
     RES_DIR = 'res2'
     FILE_PATH = '%s/generated_%d.png'
@@ -159,7 +145,6 @@ def train(height: int, width: int, latent_dim: int, channels: int, images: np.ar
     images_saved = 0
 
     for step in range(iterations):
-        print(f'[STEP]: {step}')
         start_time = time.time()
         latent_vectors = np.random.normal(size=(batch_size, latent_dim))
         generated = generator.predict(latent_vectors)
@@ -183,11 +168,11 @@ def train(height: int, width: int, latent_dim: int, channels: int, images: np.ar
         if start > images.shape[0] - batch_size:
             start = 0
 
+        print('%d/%d: d_loss: %.4f,  a_loss: %.4f.  (%.1f sec)' % (
+            step + 1, iterations, d_loss, a_loss, time.time() - start_time))
+
         if step % 50 == 49:
             gan.save_weights('gan.h5')
-
-            print('%d/%d: d_loss: %.4f,  a_loss: %.4f.  (%.1f sec)' % (
-                step + 1, iterations, d_loss, a_loss, time.time() - start_time))
 
             control_image = np.zeros((width * control_size_sqrt, height * control_size_sqrt, channels))
             control_generated = generator.predict(control_vectors)
@@ -204,5 +189,12 @@ def train(height: int, width: int, latent_dim: int, channels: int, images: np.ar
 
 
 if __name__ == '__main__':
-    li = load_images('/Users/denyspanov/Projects/bachelor/nvidia/sources/celeba-dataset/img_align_celeba/img_align_celeba/')
-    train(64, 64, 32, 3, li)
+    WIDTH = 64
+    HEIGHT = 64
+    MULTIPLIER = 2
+    BATCH_SIZE = 16
+    ITERATIONS = 10000
+    DATA_PATH = '/Users/denyspanov/Projects/bachelor/nvidia/sources/celeba-dataset/img_align_celeba/img_align_celeba/'
+
+    li = load_images(HEIGHT, WIDTH, DATA_PATH)
+    train(HEIGHT, WIDTH, 32, 3, li, MULTIPLIER, BATCH_SIZE, ITERATIONS)
