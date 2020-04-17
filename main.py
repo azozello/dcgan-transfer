@@ -191,10 +191,10 @@ def train(height: int, width: int, latent_dim: int, channels: int, images: np.ar
 if __name__ == '__main__':
     WIDTH = 64
     HEIGHT = 64
-    MULTIPLIER = 2
-    BATCH_SIZE = 16
+    MULTIPLIER = 4
+    BATCH_SIZE = 32
     ITERATIONS = 10000
-    DATA_PATH = '/Users/denyspanov/Projects/bachelor/nvidia/sources/celeba-dataset/img_align_celeba/img_align_celeba/'
+    DATA_PATH = '/home/danya_paramonov/gan/dcgan-transfer/shorten/'
 
     li = load_images(HEIGHT, WIDTH, DATA_PATH)
     train(HEIGHT, WIDTH, 32, 3, li, MULTIPLIER, BATCH_SIZE, ITERATIONS)
