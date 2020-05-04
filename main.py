@@ -132,6 +132,8 @@ def train(height: int, width: int, latent_dim: int, channels: int, images: np.ar
           multiplier=2, batch_size=16, iterations=15000):
     generator, discriminator, gan = create_gan(latent_dim, height, width, channels, multiplier)
 
+    stat = []
+
     RES_DIR = 'res2'
     FILE_PATH = '%s/generated_%d.png'
     if not os.path.isdir(RES_DIR):
@@ -171,6 +173,8 @@ def train(height: int, width: int, latent_dim: int, channels: int, images: np.ar
         print('%d/%d: d_loss: %.4f,  a_loss: %.4f.  (%.1f sec)' % (
             step + 1, iterations, d_loss, a_loss, time.time() - start_time))
 
+        stat.append([step + 1, d_loss, a_loss])
+
         if step % 50 == 49:
             gan.save_weights('gan.h5')
 
@@ -187,13 +191,15 @@ def train(height: int, width: int, latent_dim: int, channels: int, images: np.ar
             im.save(FILE_PATH % (RES_DIR, images_saved))
             images_saved += 1
 
+            np.save('stat.npy', np.array(stat))
+
 
 if __name__ == '__main__':
     WIDTH = 64
     HEIGHT = 64
     MULTIPLIER = 4
     BATCH_SIZE = 32
-    ITERATIONS = 10000
+    ITERATIONS = 15000
     DATA_PATH = '/home/danya_paramonov/gan/dcgan-transfer/shorten/'
 
     li = load_images(HEIGHT, WIDTH, DATA_PATH)
